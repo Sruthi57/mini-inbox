@@ -13,6 +13,10 @@ A real-time contact inbox for real estate agencies. Visitors submit a public for
 3. [Supabase Setup](#supabase-setup)
 4. [Local Development](#local-development)
 5. [Adding More Agencies / Agents](#adding-more-agencies--agents)
+6. [Cloudflare Deployment](#cloudflare-deployment)
+7. [RLS and Multi-tenancy](#rls--multi-tenancy)
+8. [What was left out and why](#what-was-left-out-and-why)
+9. [Where AI has helped](#where-ai-has-helped)
 
 ---
 
@@ -30,9 +34,6 @@ realty-inbox/
 │       └── Inbox.tsx                # /inbox — agent dashboard, realtime
 ├── supabase/
 │   └── schema.sql                   # Full Postgres schema, RLS, seed
-├── public/
-│   └── _redirects                   # Cloudflare Pages SPA routing
-├── vercel.json                      # Vercel SPA rewrite rule
 ├── .env.example                     # Environment variable template
 └── vite.config.ts
 ```
@@ -157,3 +158,58 @@ values (
   (select id from public.agencies where slug = 'sunset-homes')
 );
 ```
+## Cloudflare Deployment
+
+### Steps to deploy the project on Cloudflare
+Cloudflare dashboard → Pages → Create a project → Connect to Git
+Select your repo.
+Build settings:
+
+Framework preset: Vite
+Build command: npm run build
+Build output directory: dist
+
+Environment variables (same tab):
+VITE_SUPABASE_URL
+VITE_SUPABASE_ANON_KEY
+
+Click Save and Deploy.
+
+## RLS & Multi-tenancy
+
+All tenant isolation is enforced in the database.
+
+| Role | Table | Operation | Condition |
+|------|-------|-----------|-----------|
+| `anon` | `agencies` | SELECT | always (needed to resolve slug) |
+| `anon` | `contacts` | INSERT | always (FK ensures valid agency_id) |
+| `authenticated` | `profiles` | SELECT | own row only |
+| `authenticated` | `agencies` | SELECT | own agency only |
+| `authenticated` | `contacts` | SELECT | `agency_id` matches agent's agency |
+| `authenticated` | `contacts` | UPDATE | `agency_id` matches agent's agency |
+
+Database rejects the misconfigured query
+
+### What was left out and why
+
+1. Agent registration - as it was mentioned that login credentials already exists. So creating a new agent was done using Superbase dashboard
+
+2. Email Notification - When a new contact arrives, agent can see only if the dashboard is open. An edge fucntion to trigger a notification on INSERT would be helpful.
+
+3. Pagination - For the demo all the contacts are loaded for that agency. But for production system with huge data would require a cursor based pagination.
+
+4. Filter the data based on the status 'New', 'Contacted', 'Discarded'
+
+These feaatures were left out as they were out of scope and would require more time.
+
+### Where AI has helped
+
+Project structure and setup was done in one go with minor adjustments. 
+
+Generating the custom palette and animation keyframes in `tailwind.config.js` was faster than doing it manually.
+
+RLS debugging - AI helped with checking the policies → grants → privilege and finally fix the grants issue.
+
+## Where it got me into trouble or required correction
+
+The `_redirects` file** the code was generated targeting Cloudflare Pages, but the actual deploy used Cloudflare Workers via `wrangler deploy`, which handles SPA routing differently. The `_redirects` file caused a deployment error (`code: 10021`) and had to be removed.

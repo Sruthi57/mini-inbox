@@ -171,7 +171,11 @@ export default function Inbox() {
         },
         (payload) => {
           const newContact = payload.new as Contact
-          setContacts(prev => [newContact, ...prev])
+          // setContacts(prev => [newContact, ...prev])
+           setContacts(prev => {
+              if (prev.some(c => c.id === newContact.id)) return prev
+              return [newContact, ...prev]
+          })
           setNewContactIds(prev => new Set([...prev, newContact.id]))
           setLiveCount(c => c + 1)
           // Remove "new" highlight after 5s
